@@ -1,0 +1,856 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Lake District Trip</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,600;9..144,700&family=Inter:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+<style>
+  :root{
+    --parchment:#F3EEE0;
+    --paper:#FBF8F0;
+    --ink:#22201A;
+    --ink-soft:#5C574B;
+    --os-green:#1F4436;
+    --os-green-light:#3E6B54;
+    --rust:#B2502B;
+    --rust-dark:#8F3E20;
+    --slate:#33546A;
+    --gold:#A97E1F;
+    --hairline: rgba(34,32,26,0.16);
+    --radius: 4px;
+    --map-height: 620px;
+  }
+  *{box-sizing:border-box;}
+  body{
+    margin:0;
+    background:var(--parchment) url('lake-district-bg.jpg') center/cover no-repeat fixed;
+    color:var(--ink);
+    font-family:'Inter',sans-serif;
+    -webkit-font-smoothing:antialiased;
+  }
+  .page{
+    background:rgba(243,238,224,0.88);
+    backdrop-filter:blur(2px);
+  }
+  button{font-family:inherit; cursor:pointer;}
+  :focus-visible{outline:2px solid var(--rust); outline-offset:2px;}
+
+  .page{
+    max-width:1300px;
+    margin:0 auto;
+    padding:28px 24px 60px;
+  }
+
+  h1.headline{
+    font-family:'Fraunces', serif;
+    font-weight:700;
+    font-size:30px;
+    color:var(--os-green);
+    margin:0 0 4px;
+  }
+  .subhead{
+    font-family:'IBM Plex Mono', monospace;
+    font-size:11.5px;
+    letter-spacing:0.06em;
+    text-transform:uppercase;
+    color:var(--ink-soft);
+    margin:0 0 26px;
+  }
+
+  .grid{
+    display:grid;
+    grid-template-columns:230px 1fr 320px;
+    gap:22px;
+    align-items:start;
+  }
+
+  .sidebar > * + *{ margin-top:22px; }
+  .block-title{
+    font-family:'IBM Plex Mono', monospace;
+    font-size:11px;
+    letter-spacing:0.08em;
+    text-transform:uppercase;
+    color:var(--ink-soft);
+    margin:0 0 10px;
+  }
+  .search-box{
+    display:flex;
+    align-items:center;
+    background:var(--paper);
+    border:1px solid var(--hairline);
+    border-radius:var(--radius);
+    padding:9px 10px;
+    gap:8px;
+  }
+  .search-box input{
+    border:none; background:none; outline:none;
+    font-size:13.5px; color:var(--ink); width:100%;
+    font-family:'Inter',sans-serif;
+  }
+  .search-box svg{flex-shrink:0; opacity:0.5;}
+  .select-box{
+    width:100%;
+    background:var(--paper);
+    border:1px solid var(--hairline);
+    border-radius:var(--radius);
+    padding:9px 10px;
+    font-size:13.5px;
+    font-family:'Inter',sans-serif;
+    color:var(--ink);
+    cursor:pointer;
+  }
+
+  .filter-item{
+    display:flex;
+    align-items:center;
+    gap:9px;
+    padding:6px 0;
+    font-size:13.5px;
+  }
+  .filter-item input{
+    appearance:none;
+    width:15px; height:15px;
+    border:1.5px solid var(--ink-soft);
+    border-radius:3px;
+    display:grid;
+    place-content:center;
+    cursor:pointer;
+    flex-shrink:0;
+  }
+  .filter-item input:checked{background:var(--cat-color); border-color:var(--cat-color);}
+  .filter-item input:checked::after{
+    content:"";
+    width:5px;height:8px;
+    border:solid var(--paper);
+    border-width:0 2px 2px 0;
+    transform:rotate(45deg) translate(-1px,-1px);
+  }
+  .filter-item label{flex:1; cursor:pointer;}
+  .filter-item .cnt{font-family:'IBM Plex Mono', monospace; font-size:11px; color:var(--ink-soft);}
+
+  .legend-row{display:flex; align-items:center; gap:8px; font-size:12.5px; color:var(--ink-soft); padding:4px 0;}
+  .legend-dot{width:11px; height:11px; border-radius:50%; background:var(--cat-color); flex-shrink:0;}
+
+  /* ---- Map (Leaflet) ---- */
+  .map-wrap{
+    position:relative;
+    height:var(--map-height);
+    border:1px solid var(--hairline);
+    border-radius:var(--radius);
+    overflow:hidden;
+    background:var(--paper);
+  }
+  .custom-pin{background:transparent; border:none;}
+  .pin-dot{
+    width:26px;height:26px;
+    border-radius:50% 50% 50% 0;
+    transform:rotate(-45deg);
+    display:grid;
+    place-content:center;
+    border:2px solid var(--paper);
+    box-shadow:0 1px 3px rgba(0,0,0,0.3);
+  }
+  .pin-dot span{
+    transform:rotate(45deg);
+    font-family:'IBM Plex Mono', monospace;
+    font-size:10px;
+    font-weight:700;
+    color:var(--paper);
+  }
+  .pin-dot.selected{
+    box-shadow:0 0 0 4px rgba(178,80,43,0.35), 0 1px 3px rgba(0,0,0,0.3);
+    border-color:var(--rust);
+  }
+  .leaflet-tooltip{
+    font-family:'Inter',sans-serif;
+    font-size:12.5px;
+    font-weight:600;
+    color:var(--ink);
+    background:var(--paper);
+    border:1px solid var(--hairline);
+    border-radius:3px;
+    padding:4px 8px;
+    box-shadow:0 1px 3px rgba(0,0,0,0.15);
+  }
+  .leaflet-tooltip-top:before{border-top-color:var(--hairline);}
+  .map-ctrl-btn{
+    background:var(--paper) !important;
+    border:1px solid var(--hairline) !important;
+    box-shadow:0 1px 4px rgba(0,0,0,0.18) !important;
+    border-radius:6px !important;
+  }
+  .locate-btn{
+    width:34px; height:34px;
+    display:grid; place-content:center;
+    color:var(--os-green);
+    margin:0 !important;
+  }
+  .locate-btn:hover{background:rgba(31,68,54,0.06) !important; color:var(--rust);}
+  .theme-ctrl{padding:2px;}
+  .theme-select{
+    border:none;
+    background:none;
+    font-family:'IBM Plex Mono', monospace;
+    font-size:11px;
+    color:var(--ink);
+    padding:7px 8px;
+    cursor:pointer;
+    outline:none;
+  }
+  .leaflet-popup-content-wrapper{border-radius:4px; font-family:'Inter',sans-serif;}
+  .leaflet-popup-content{font-size:13px; margin:10px 12px;}
+  .popup-cat{font-family:'IBM Plex Mono',monospace; font-size:10px; text-transform:uppercase; letter-spacing:0.05em; color:var(--ink-soft); margin-bottom:2px;}
+  .popup-name{font-weight:600; margin-bottom:4px;}
+
+  /* ---- Right panel ---- */
+  .panel{
+    border:1px solid var(--hairline);
+    border-radius:var(--radius);
+    background:var(--paper);
+    min-height:var(--map-height);
+    display:flex;
+    flex-direction:column;
+  }
+  .panel-tabs{display:flex; border-bottom:1px solid var(--hairline);}
+  .panel-tabs button{
+    flex:1;
+    background:none; border:none;
+    padding:14px 10px;
+    font-family:'IBM Plex Mono', monospace;
+    font-size:11px; letter-spacing:0.07em; text-transform:uppercase;
+    color:var(--ink-soft);
+    border-bottom:2px solid transparent;
+  }
+  .panel-tabs button.active{color:var(--os-green); border-bottom-color:var(--rust);}
+  .panel-body{padding:20px; flex:1;}
+
+  .empty-state{color:var(--ink-soft); font-size:13.5px; line-height:1.6; text-align:center; padding:40px 10px;}
+  .empty-state .glyph{font-size:22px; display:block; margin-bottom:10px;}
+
+  .pc-cat{font-family:'IBM Plex Mono', monospace; font-size:10.5px; letter-spacing:0.07em; text-transform:uppercase; color:var(--cat-color); margin-bottom:6px;}
+  .panel-body h3{font-family:'Fraunces', serif; font-size:21px; font-weight:700; margin:0 0 8px; line-height:1.2;}
+  .pc-meta{display:flex; gap:14px; font-family:'IBM Plex Mono', monospace; font-size:11.5px; color:var(--ink-soft); margin-bottom:14px; flex-wrap:wrap;}
+  .pc-desc{font-size:13.5px; line-height:1.6; margin:0 0 18px;}
+  .btn{
+    width:100%; padding:11px 14px; border-radius:var(--radius);
+    border:1px solid var(--os-green); background:var(--os-green); color:var(--paper);
+    font-size:13.5px; font-weight:600;
+  }
+  .btn:hover{background:var(--os-green-light); border-color:var(--os-green-light);}
+  .btn.added{background:var(--paper); color:var(--rust-dark); border-color:var(--rust);}
+
+  .stop{display:flex; gap:10px; padding:11px 0; border-bottom:1px dashed var(--hairline); align-items:flex-start;}
+  .stop:last-child{border-bottom:none;}
+  .stop-index{
+    font-family:'IBM Plex Mono', monospace; font-size:12px; font-weight:600; color:var(--paper);
+    background:var(--cat-color); width:22px; height:22px; border-radius:50%;
+    display:grid; place-content:center; flex-shrink:0;
+  }
+  .stop-body{flex:1; min-width:0;}
+  .stop-body .s-name{font-size:13.5px; font-weight:600;}
+  .stop-body .s-cat{font-family:'IBM Plex Mono', monospace; font-size:10px; color:var(--ink-soft); text-transform:uppercase; margin-top:2px;}
+  .stop-actions button{
+    background:none; border:1px solid var(--hairline); border-radius:2px;
+    width:22px; height:22px; color:var(--ink-soft); font-size:12px;
+  }
+  .stop-actions button:hover{border-color:var(--rust); color:var(--rust);}
+
+  .route-btn{margin-top:16px;}
+  .route-stats{
+    display:flex;
+    gap:12px;
+    margin-top:14px;
+    padding:12px 14px;
+    background:rgba(31,68,54,0.06);
+    border:1px dashed var(--hairline);
+    border-radius:var(--radius);
+  }
+  .route-stats div{flex:1; text-align:center;}
+  .route-stats .val{
+    display:block;
+    font-family:'IBM Plex Mono', monospace;
+    font-size:15px;
+    font-weight:600;
+    color:var(--os-green);
+  }
+  .route-stats .lbl{
+    font-size:10.5px;
+    color:var(--ink-soft);
+  }
+  .route-note{
+    font-size:11px;
+    color:var(--ink-soft);
+    line-height:1.5;
+    margin-top:8px;
+  }
+
+  @media (max-width:980px){
+    .grid{grid-template-columns:1fr;}
+    :root{--map-height:420px;}
+    .sidebar{display:flex; flex-wrap:wrap; gap:18px;}
+    .sidebar > *{margin-top:0 !important;}
+  }
+</style>
+</head>
+<body>
+<div class="page">
+
+  <h1 class="headline">Lake District Trip</h1>
+  <p class="subhead">UK day trips, plotted by hand</p>
+
+  <div class="grid">
+
+    <div class="sidebar">
+      <div>
+        <div class="block-title">Search</div>
+        <div class="search-box">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+          <input type="text" id="searchInput" placeholder="Search a place…">
+        </div>
+      </div>
+
+      <div>
+        <div class="block-title">Region</div>
+        <select class="select-box" id="regionSelect"></select>
+      </div>
+
+      <div>
+        <div class="block-title">Filter</div>
+        <div id="filterList"></div>
+      </div>
+
+      <div>
+        <div class="block-title">Key</div>
+        <div id="legendList"></div>
+      </div>
+    </div>
+
+    <div class="map-wrap" id="mapWrap"></div>
+
+    <div class="panel">
+      <div class="panel-tabs">
+        <button id="tabPlace" class="active">Place</button>
+        <button id="tabPlan">Your Plan <span id="planBadge"></span></button>
+      </div>
+      <div class="panel-body" id="panelBody"></div>
+    </div>
+
+  </div>
+</div>
+
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script>
+/* ---------------- Data ---------------- */
+const CATS = {
+  attraction: { label:'Attraction', glyph:'A', color:'#1F4436' },
+  parking:    { label:'Parking',    glyph:'P', color:'#33546A' },
+  hotel:      { label:'Hotel',      glyph:'H', color:'#A97E1F' },
+  restaurant: { label:'Restaurant', glyph:'R', color:'#B2502B' },
+};
+
+const REGIONS = {
+  cotswolds: {
+    label:'Cotswolds',
+    bbox:{minLat:51.86,maxLat:51.955,minLng:-1.86,maxLng:-1.60},
+    places:[
+      {id:'cw1',name:'Bourton-on-the-Water & the River Windrush',cat:'attraction',lat:51.8756,lng:-1.7539,price:'Free',rating:4.6,duration:'1.5 hr',desc:'A low stone-bridged village green with the Windrush running straight through the middle of it. Best seen slowly, on foot.'},
+      {id:'cw2',name:'Bourton Model Village',cat:'attraction',lat:51.8748,lng:-1.7522,price:'££',rating:4.3,duration:'45 min',desc:'A 1:9 scale replica of the village itself, built from the same Cotswold stone. A favourite with kids.'},
+      {id:'cw3',name:'Cotswold Motoring Museum',cat:'attraction',lat:51.8757,lng:-1.7541,price:'££',rating:4.2,duration:'1 hr',desc:'Vintage cars, caravans and roadside advertising in a converted watermill.'},
+      {id:'cw4',name:'Stow-on-the-Wold Market Square',cat:'attraction',lat:51.9307,lng:-1.7231,price:'Free',rating:4.5,duration:'1 hr',desc:'One of the highest towns in the Cotswolds, with narrow alleys built to pen sheep on market day.'},
+      {id:'cw5',name:'Chastleton House',cat:'attraction',lat:51.9481,lng:-1.6339,price:'£££',rating:4.4,duration:'2 hr',desc:'A Jacobean house left largely untouched for 400 years, cared for by the National Trust.'},
+      {id:'cw6',name:'Rissington Road Car Park',cat:'parking',lat:51.8735,lng:-1.7508,price:'£',rating:4.0,duration:'—',desc:'Pay and display, a short walk from the village green. Fills up by mid-morning in summer.'},
+      {id:'cw7',name:'Talbot Court Car Park, Stow',cat:'parking',lat:51.9305,lng:-1.7255,price:'£',rating:3.9,duration:'—',desc:'Central long-stay parking just off the market square.'},
+      {id:'cw8',name:'The Dial House Hotel',cat:'hotel',lat:51.8752,lng:-1.7534,price:'£££',rating:4.7,duration:'—',desc:'A 17th-century stone manor with a walled garden, steps from the river.'},
+      {id:'cw9',name:'Number Four Hotel',cat:'hotel',lat:51.8768,lng:-1.7562,price:'££',rating:4.3,duration:'—',desc:'A quieter riverside spot on the edge of the village, popular for weekend stays.'},
+      {id:'cw10',name:'The Kings Arms, Stow',cat:'hotel',lat:51.9309,lng:-1.7237,price:'££',rating:4.1,duration:'—',desc:'Coaching-inn rooms right on the market square.'},
+      {id:'cw11',name:'The Rose Tree',cat:'restaurant',lat:51.8750,lng:-1.7515,price:'££',rating:4.4,duration:'1 hr',desc:'Riverside tables, simple British menu, best in the early evening light.'},
+      {id:'cw12',name:'The Old Butchers, Stow',cat:'restaurant',lat:51.9302,lng:-1.7235,price:'£££',rating:4.6,duration:'1.5 hr',desc:'Small, seasonal, book ahead — a converted butcher\'s shop turned into one of the area\'s best tables.'},
+      {id:'cw13',name:'Greedy Goose',cat:'restaurant',lat:51.8744,lng:-1.7529,price:'£',rating:4.2,duration:'45 min',desc:'Fast, informal, good for lunch between stops.'},
+    ]
+  },
+  lakedistrict: {
+    label:'Lake District',
+    bbox:{minLat:54.25,maxLat:54.72,minLng:-3.30,maxLng:-2.87},
+    places:[
+      {id:'ld1',name:'Windermere Lake Cruises Jetty',cat:'attraction',lat:54.3803,lng:-2.9066,price:'££',rating:4.6,duration:'1 hr',desc:'Steamers out onto England\'s largest lake, with fell views the whole way.'},
+      {id:'ld2',name:'Ambleside & Bridge House',cat:'attraction',lat:54.4306,lng:-2.9622,price:'Free',rating:4.5,duration:'1 hr',desc:'A tiny 17th-century house built straight over a stream — one of the most photographed spots in the Lakes.'},
+      {id:'ld3',name:'Orrest Head Viewpoint',cat:'attraction',lat:54.3838,lng:-2.9037,price:'Free',rating:4.7,duration:'1.5 hr',desc:'A short, sharp climb for one of the best panoramas of Windermere without a full day\'s walk.'},
+      {id:'ld5',name:'Rayrigg Road Car Park',cat:'parking',lat:54.3785,lng:-2.9105,price:'£',rating:3.9,duration:'—',desc:'Lakeside parking near the jetty, popular and often full by late morning.'},
+      {id:'ld6',name:'Ambleside Central Car Park',cat:'parking',lat:54.4292,lng:-2.9615,price:'£',rating:4.0,duration:'—',desc:'A few minutes\' walk from the centre of town.'},
+      {id:'ld7',name:'Low Wood Bay Resort',cat:'hotel',lat:54.4041,lng:-2.9295,price:'£££',rating:4.5,duration:'—',desc:'Lakeside rooms with their own water-sports jetty.'},
+      {id:'ld8',name:'Waterhead Hotel, Ambleside',cat:'hotel',lat:54.4234,lng:-2.9636,price:'££',rating:4.3,duration:'—',desc:'Right on the water where the ferries dock.'},
+      {id:'ld9',name:'Lindeth Howe, Bowness',cat:'hotel',lat:54.3583,lng:-2.9187,price:'£££',rating:4.6,duration:'—',desc:'A former Beatrix Potter family home, now a quiet country-house hotel above the lake.'},
+      {id:'ld10',name:'Lucy\'s of Ambleside',cat:'restaurant',lat:54.4306,lng:-2.9611,price:'££',rating:4.5,duration:'1 hr',desc:'A long-standing local favourite for hearty, unfussy cooking.'},
+      {id:'ld11',name:'Jerichos, Windermere',cat:'restaurant',lat:54.3799,lng:-2.9078,price:'£££',rating:4.4,duration:'1.5 hr',desc:'Modern British, small plates, worth the short walk up from the lake.'},
+      {id:'ld12',name:'Beech Hill Restaurant, Bowness',cat:'restaurant',lat:54.3502,lng:-2.9280,price:'££',rating:4.2,duration:'1 hr',desc:'Lake-view dining a little out of the centre, quieter than town.'},
+      {id:'ld14',name:'Tarn Hows',cat:'attraction',lat:54.4278,lng:-3.0064,price:'Free',rating:4.7,duration:'1.5 hr',desc:'An easy, flat circular walk around a small tarn with some of the most photographed views in the Lakes.'},
+      {id:'ld15',name:'Castlerigg Stone Circle',cat:'attraction',lat:54.6027,lng:-3.0967,price:'Free',rating:4.8,duration:'45 min',desc:'A Neolithic stone circle set in a natural bowl of fells — free entry, best around sunset.'},
+      {id:'ld16',name:'Derwentwater & Keswick Launch',cat:'attraction',lat:54.58754,lng:-3.1771666,price:'££',rating:4.6,duration:'1.5 hr',desc:'A round-the-lake launch service stopping at several jetties, with Cat Bells rising behind it.'},
+      {id:'ld17',name:'Buttermere Lake Loop',cat:'attraction',lat:54.5407,lng:-3.2740,price:'Free',rating:4.8,duration:'1.5 hr',desc:'A flat, easy 4.5-mile path right around the shore — one of the quieter, prettier lakes.'},
+      {id:'ld18',name:'Honister Slate Mine & Pass',cat:'attraction',lat:54.5262,lng:-3.2137,price:'££',rating:4.5,duration:'1 hr',desc:'A dramatic mountain pass with a working slate mine offering underground tours.'},
+      {id:'ld19',name:'Castlerigg Hall Caravan & Camping Park',cat:'hotel',lat:54.5945,lng:-3.1197,price:'£',rating:4.4,duration:'—',desc:'Budget-friendly tent pitches with fell views, a short drive from Keswick and Castlerigg.'},
+      {id:'ld20',name:'The Round, Keswick',cat:'restaurant',lat:54.6015,lng:-3.1354,price:'££',rating:4.4,duration:'1 hr',desc:'Relaxed spot in the town centre, good for a group dinner after a day on the fells.'},
+      {id:'ld21',name:'Keswick Central Car Park',cat:'parking',lat:54.6009,lng:-3.1361,price:'£',rating:3.9,duration:'—',desc:'Pay and display, a couple of minutes\' walk from the town centre and lake.'},
+
+      {id:'ld22',name:'Gummer\'s How',cat:'attraction',lat:54.28061025112349,lng:-2.9392096964118863,price:'Free',rating:4.6,duration:'1 hr',desc:'A short, easy climb at the south end of Windermere with a huge payoff — panoramic views the whole length of the lake.'},
+      {id:'ld23',name:'Queen Adelaide\'s Hill',cat:'attraction',lat:54.3829037,lng:-2.9302802,price:'Free',rating:4.4,duration:'45 min',desc:'A quiet wooded viewpoint just above Windermere town, far less busy than Orrest Head.'},
+      {id:'ld41',name:'Carrock Beck',cat:'attraction',lat:54.70601723205432,lng:-3.0106600475843583,price:'Free',rating:4.2,duration:'20 min',desc:'A quiet stone bridge over Carrock Beck in the northern fells, near Mungrisdale.'},
+      {id:'ld42',name:'Bowscale Tarn',cat:'attraction',lat:54.672803054939095,lng:-3.030731836209326,price:'Free',rating:4.5,duration:'1.5 hr',desc:'A remote, still tarn tucked beneath Bowscale Fell in the quieter northern fells.'},
+      {id:'ld24',name:'Angle Tarn (Patterdale)',cat:'attraction',lat:54.52169534620419,lng:-2.903976162627226,price:'Free',rating:4.7,duration:'2.5 hr',desc:'A reed-fringed tarn with a small island, on the ridge above Ullswater — a proper fell walk from Patterdale.'},
+      {id:'ld25',name:'Hallin Fell',cat:'attraction',lat:54.57049588382023,lng:-2.8786600237475324,price:'Free',rating:4.6,duration:'1.5 hr',desc:'A short, steep pull up from Martindale with one of the best value view-to-effort ratios over Ullswater.'},
+      {id:'ld26',name:'Blencathra',cat:'attraction',lat:54.6400,lng:-3.0500,price:'Free',rating:4.8,duration:'4 hr',desc:'One of Lakeland\'s great mountains, best known for the Sharp Edge scramble. A serious fell day, not a stroll.'},
+      {id:'ld27',name:'Bassenthwaite Lake Viewing Point',cat:'attraction',lat:54.6450,lng:-3.2090,price:'Free',rating:4.3,duration:'30 min',desc:'Dodd Wood / Old Sawmill viewpoint over Bassenthwaite Lake, also a red squirrel and osprey-watching spot.'},
+      {id:'ld28',name:'Skellgill Bank (Cat Bells ridge)',cat:'attraction',lat:54.57523613610769,lng:-3.1691044683883915,price:'Free',rating:4.7,duration:'2 hr',desc:'The lower shoulder of the Cat Bells ridge, with Derwentwater and Newlands Valley views the whole way up.'},
+      {id:'ld29',name:'Moss Force Waterfall',cat:'attraction',lat:54.545338417165716,lng:-3.2491622238842326,price:'Free',rating:4.4,duration:'45 min',desc:'A dramatic 100m cascade right by the road at Newlands Hause, between the Newlands and Buttermere valleys.'},
+      {id:'ld30',name:'Haystacks',cat:'attraction',lat:54.501676448646926,lng:-3.2524701934761193,price:'Free',rating:4.9,duration:'3 hr',desc:'Wainwright\'s favourite fell, with Innominate Tarn near the summit where his ashes were scattered.'},
+      {id:'ld31',name:'Cathedral Cavern',cat:'attraction',lat:54.346062,lng:-2.9899857,price:'Free',rating:4.5,duration:'45 min',desc:'A cavernous old slate quarry cave in the southern Lakes, atmospheric and easy to reach on foot.'},
+
+      {id:'ld32',name:'Gummer\'s How Car Park',cat:'parking',lat:54.2809,lng:-2.9388,price:'Free',rating:4.3,duration:'—',desc:'Forestry England car park right at the trailhead, ~20 spaces, postcode LA12 8NP.'},
+      {id:'ld33',name:'Side Farm Car Park, Patterdale',cat:'parking',lat:54.5495,lng:-2.9445,price:'£',rating:4.1,duration:'—',desc:'Closest pay-and-display parking for Angle Tarn and the Boredale/Patterdale fells.'},
+      {id:'ld34',name:'Howtown Car Park',cat:'parking',lat:54.5814,lng:-2.8917,price:'£',rating:4.0,duration:'—',desc:'Small car park by Howtown pier on Ullswater, the usual start point for Hallin Fell.'},
+      {id:'ld35',name:'Scales Layby (for Blencathra)',cat:'parking',lat:54.6423,lng:-3.0184,price:'Free',rating:4.0,duration:'—',desc:'Roadside layby near the White Horse Inn, Scales, on the A66 — the standard Blencathra/Sharp Edge starting point.'},
+      {id:'ld36',name:'Dodd Wood Car Park',cat:'parking',lat:54.6450,lng:-3.2090,price:'£',rating:4.2,duration:'—',desc:'Pay and display, right at the Bassenthwaite Lake viewing point and osprey watch.'},
+      {id:'ld37',name:'Hawes End Car Park',cat:'parking',lat:54.5850,lng:-3.1638,price:'Free',rating:4.0,duration:'—',desc:'Small free car park, the usual starting point for Cat Bells and Skellgill Bank.'},
+      {id:'ld38',name:'Newlands Hause Layby',cat:'parking',lat:54.5459,lng:-3.2381,price:'Free',rating:4.1,duration:'—',desc:'Roadside parking right at the pass, a couple of minutes\' walk from Moss Force.'},
+      {id:'ld39',name:'Gatesgarth Farm Car Park',cat:'parking',lat:54.5106,lng:-3.2166,price:'£',rating:4.4,duration:'—',desc:'Pay and display (cash only) at the head of Buttermere — the main starting point for Haystacks.'},
+      {id:'ld40',name:'Grizedale Forest Car Park',cat:'parking',lat:54.323,lng:-3.0247,price:'£',rating:4.2,duration:'—',desc:'Nearest sizeable public car park to Cathedral Cavern, in Grizedale Forest.'},
+    ]
+  },
+  york: {
+    label:'York',
+    bbox:{minLat:53.948,maxLat:53.972,minLng:-1.10,maxLng:-1.075},
+    places:[
+      {id:'yk1',name:'York Minster',cat:'attraction',lat:53.9623,lng:-1.0819,price:'££',rating:4.8,duration:'1.5 hr',desc:'One of the largest Gothic cathedrals in northern Europe — climb the tower if you have the legs for 275 steps.'},
+      {id:'yk2',name:'The Shambles',cat:'attraction',lat:53.9594,lng:-1.0819,price:'Free',rating:4.6,duration:'45 min',desc:'A crooked medieval street of overhanging timber-framed shops, said to have inspired Diagon Alley.'},
+      {id:'yk3',name:'Clifford\'s Tower',cat:'attraction',lat:53.9578,lng:-1.0793,price:'££',rating:4.3,duration:'1 hr',desc:'What remains of York Castle, on a mound with views over the whole city.'},
+      {id:'yk4',name:'JORVIK Viking Centre',cat:'attraction',lat:53.9583,lng:-1.0803,price:'££',rating:4.2,duration:'1 hr',desc:'Built over the original Viking-age excavation site, with a ride through a reconstructed 10th-century street.'},
+      {id:'yk5',name:'Marygate Car Park',cat:'parking',lat:53.9635,lng:-1.0876,price:'£',rating:4.0,duration:'—',desc:'A short riverside walk from the Minster.'},
+      {id:'yk6',name:'Castle Car Park, York',cat:'parking',lat:53.9569,lng:-1.0798,price:'£',rating:3.8,duration:'—',desc:'Closest parking to Clifford\'s Tower and the Castle Museum.'},
+      {id:'yk7',name:'The Grand, York',cat:'hotel',lat:53.9556,lng:-1.0913,price:'£££',rating:4.6,duration:'—',desc:'A former railway headquarters turned five-star hotel, a little west of the walls.'},
+      {id:'yk8',name:'Middletons Hotel',cat:'hotel',lat:53.9581,lng:-1.0864,price:'££',rating:4.3,duration:'—',desc:'Inside the city walls, close to everything on foot.'},
+      {id:'yk9',name:'Hedley House Hotel',cat:'hotel',lat:53.9673,lng:-1.0965,price:'££',rating:4.4,duration:'—',desc:'A quieter riverside guesthouse a fifteen-minute walk from the centre.'},
+      {id:'yk10',name:'Bettys Café Tea Rooms',cat:'restaurant',lat:53.9598,lng:-1.0842,price:'££',rating:4.5,duration:'1 hr',desc:'The Yorkshire institution — expect a queue, and order the fat rascal.'},
+      {id:'yk11',name:'The Star Inn the City',cat:'restaurant',lat:53.9603,lng:-1.0870,price:'£££',rating:4.6,duration:'1.5 hr',desc:'A riverside sister to the Michelin-starred Star Inn, inside a restored engine house.'},
+      {id:'yk12',name:'Skosh',cat:'restaurant',lat:53.9563,lng:-1.0899,price:'££',rating:4.7,duration:'1.5 hr',desc:'Small plates, big reputation — one of the best-reviewed tables in the city.'},
+    ]
+  }
+};
+
+/* ---------------- State ---------------- */
+let state = {
+  region: 'lakedistrict',
+  activeFilters: new Set(Object.keys(CATS)),
+  searchTerm: '',
+  selectedPlaceId: null,
+  activeTab: 'plan',
+  plans: { cotswolds:[], lakedistrict:['ld22','ld1','ld23','ld3','ld2','ld14','ld31','ld15','ld16','ld28','ld19','ld29','ld17','ld30','ld18','ld26','ld27','ld41','ld42','ld24','ld25'], york:[], all:[] },
+  showRoute: false,
+  routeStatus: 'idle',
+  routeGeojson: null,
+  routeDistanceMiles: null,
+  routeDurationMin: null
+};
+
+let leafletMap, markerLayer, routeLayer;
+
+/* ---------------- Helpers ---------------- */
+function haversineMiles(a,b){
+  const R = 3958.8;
+  const toRad = d => d*Math.PI/180;
+  const dLat = toRad(b.lat-a.lat);
+  const dLng = toRad(b.lng-a.lng);
+  const lat1 = toRad(a.lat), lat2 = toRad(b.lat);
+  const h = Math.sin(dLat/2)**2 + Math.cos(lat1)*Math.cos(lat2)*Math.sin(dLng/2)**2;
+  return R * 2 * Math.atan2(Math.sqrt(h), Math.sqrt(1-h));
+}
+function allRegionsBbox(){
+  const boxes = Object.values(REGIONS).map(r=>r.bbox);
+  return {
+    minLat: Math.min(...boxes.map(b=>b.minLat)),
+    maxLat: Math.max(...boxes.map(b=>b.maxLat)),
+    minLng: Math.min(...boxes.map(b=>b.minLng)),
+    maxLng: Math.max(...boxes.map(b=>b.maxLng)),
+  };
+}
+async function fetchRoadRoute(places){
+  const coordStr = places.map(p => `${p.lng},${p.lat}`).join(';');
+  const url = `https://router.project-osrm.org/route/v1/driving/${coordStr}?overview=full&geometries=geojson`;
+  const res = await fetch(url);
+  if(!res.ok) throw new Error('Routing request failed');
+  const data = await res.json();
+  if(!data.routes || !data.routes.length) throw new Error('No route found');
+  const route = data.routes[0];
+  return {
+    coords: route.geometry.coordinates.map(([lng,lat]) => [lat,lng]),
+    distanceMiles: route.distance / 1609.34,
+    durationMin: route.duration / 60
+  };
+}
+function currentRegion(){
+  if(state.region === 'all'){
+    return {
+      label:'All Regions',
+      bbox: allRegionsBbox(),
+      places: Object.values(REGIONS).flatMap(r=>r.places)
+    };
+  }
+  return REGIONS[state.region];
+}
+function currentPlaces(){ return currentRegion().places; }
+function findPlace(id){ return currentPlaces().find(p=>p.id===id); }
+function currentPlan(){ return state.plans[state.region]; }
+function visiblePlaces(){
+  const term = state.searchTerm.trim().toLowerCase();
+  return currentPlaces().filter(p=>{
+    if(!state.activeFilters.has(p.cat)) return false;
+    if(term && !p.name.toLowerCase().includes(term)) return false;
+    return true;
+  });
+}
+
+/* ---------------- Region tabs ---------------- */
+function renderRegionSelect(){
+  const el = document.getElementById('regionSelect');
+  el.innerHTML = '';
+  const allOpt = document.createElement('option');
+  allOpt.value = 'all';
+  allOpt.textContent = 'All';
+  if(state.region === 'all') allOpt.selected = true;
+  el.appendChild(allOpt);
+  Object.entries(REGIONS).forEach(([key,r])=>{
+    const opt = document.createElement('option');
+    opt.value = key;
+    opt.textContent = r.label;
+    if(key === state.region) opt.selected = true;
+    el.appendChild(opt);
+  });
+  el.onchange = (e)=>{
+    state.region = e.target.value;
+    state.selectedPlaceId = null;
+    state.activeTab = 'place';
+    state.showRoute = false;
+    renderAll();
+  };
+}
+
+/* ---------------- Filters + Key ---------------- */
+function renderFilters(){
+  const el = document.getElementById('filterList');
+  el.innerHTML = '';
+  Object.entries(CATS).forEach(([key,c])=>{
+    const count = currentPlaces().filter(p=>p.cat===key).length;
+    const row = document.createElement('div');
+    row.className = 'filter-item';
+    row.style.setProperty('--cat-color', c.color);
+    row.innerHTML = `
+      <input type="checkbox" id="f-${key}" ${state.activeFilters.has(key)?'checked':''}>
+      <label for="f-${key}">${c.label}</label>
+      <span class="cnt">${count}</span>
+    `;
+    row.querySelector('input').addEventListener('change', (e)=>{
+      if(e.target.checked) state.activeFilters.add(key); else state.activeFilters.delete(key);
+      renderMap();
+    });
+    el.appendChild(row);
+  });
+}
+function renderLegend(){
+  const el = document.getElementById('legendList');
+  el.innerHTML = '';
+  Object.values(CATS).forEach(c=>{
+    const row = document.createElement('div');
+    row.className = 'legend-row';
+    row.style.setProperty('--cat-color', c.color);
+    row.innerHTML = `<span class="legend-dot"></span>${c.label}`;
+    el.appendChild(row);
+  });
+}
+
+/* ---------------- Map (Leaflet + OpenStreetMap) ---------------- */
+const TILE_THEMES = {
+  standard: { name:'Standard', url:'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', maxZoom:19, attribution:'&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors' },
+  terrain:  { name:'Terrain',  url:'https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png', maxZoom:17, attribution:'&copy; OpenStreetMap contributors, SRTM | &copy; <a href="https://opentopomap.org">OpenTopoMap</a> (CC-BY-SA)' },
+  light:    { name:'Light',    url:'https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', maxZoom:19, attribution:'&copy; OpenStreetMap contributors &copy; <a href="https://carto.com/attributions">CARTO</a>' },
+  dark:     { name:'Dark',     url:'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', maxZoom:19, attribution:'&copy; OpenStreetMap contributors &copy; <a href="https://carto.com/attributions">CARTO</a>' },
+};
+let baseTileLayer = null;
+let userLocationMarker = null;
+
+function setTileTheme(key){
+  const theme = TILE_THEMES[key] || TILE_THEMES.standard;
+  if(baseTileLayer) baseTileLayer.remove();
+  baseTileLayer = L.tileLayer(theme.url, { maxZoom: theme.maxZoom, attribution: theme.attribution });
+  baseTileLayer.addTo(leafletMap);
+  baseTileLayer.bringToBack();
+}
+
+const LocateControl = L.Control.extend({
+  options: { position:'bottomright' },
+  onAdd: function(){
+    const btn = L.DomUtil.create('button','map-ctrl-btn locate-btn');
+    btn.type = 'button';
+    btn.title = 'Show my location';
+    btn.innerHTML = '<svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3"/></svg>';
+    L.DomEvent.disableClickPropagation(btn);
+    L.DomEvent.on(btn, 'click', locateUser);
+    return btn;
+  }
+});
+
+const ThemeControl = L.Control.extend({
+  options: { position:'bottomleft' },
+  onAdd: function(){
+    const wrap = L.DomUtil.create('div','map-ctrl-btn theme-ctrl');
+    const select = L.DomUtil.create('select','theme-select', wrap);
+    Object.entries(TILE_THEMES).forEach(([key,t])=>{
+      const opt = document.createElement('option');
+      opt.value = key; opt.textContent = t.name;
+      select.appendChild(opt);
+    });
+    L.DomEvent.disableClickPropagation(wrap);
+    L.DomEvent.on(select, 'change', (e)=> setTileTheme(e.target.value));
+    return wrap;
+  }
+});
+
+function locateUser(){
+  if(!navigator.geolocation){
+    alert('Location access is not available in this browser.');
+    return;
+  }
+  navigator.geolocation.getCurrentPosition(
+    (pos)=>{
+      const { latitude, longitude } = pos.coords;
+      if(userLocationMarker) userLocationMarker.remove();
+      userLocationMarker = L.circleMarker([latitude, longitude], {
+        radius:8, color:'#FBF8F0', weight:2, fillColor:'#2C6FB2', fillOpacity:1
+      }).addTo(leafletMap);
+      leafletMap.setView([latitude, longitude], 13);
+    },
+    ()=>{ alert("Couldn't get your location. Check that location access is allowed for this page."); }
+  );
+}
+
+function initMap(){
+  leafletMap = L.map('mapWrap', { scrollWheelZoom:true });
+  setTileTheme('standard');
+  markerLayer = L.layerGroup().addTo(leafletMap);
+  routeLayer = L.layerGroup().addTo(leafletMap);
+  leafletMap.addControl(new LocateControl());
+  leafletMap.addControl(new ThemeControl());
+}
+function makeIcon(cat, selected){
+  const c = CATS[cat];
+  return L.divIcon({
+    className:'custom-pin',
+    html:`<div class="pin-dot${selected?' selected':''}" style="background:${c.color}"><span>${c.glyph}</span></div>`,
+    iconSize:[26,26],
+    iconAnchor:[13,26],
+    popupAnchor:[0,-24]
+  });
+}
+function renderMap(){
+  const bbox = currentRegion().bbox;
+  leafletMap.fitBounds([[bbox.minLat,bbox.minLng],[bbox.maxLat,bbox.maxLng]], {padding:[24,24]});
+  markerLayer.clearLayers();
+  const visibleIds = new Set(visiblePlaces().map(p=>p.id));
+  currentPlaces().forEach(p=>{
+    if(!visibleIds.has(p.id)) return;
+    const c = CATS[p.cat];
+    const marker = L.marker([p.lat, p.lng], { icon: makeIcon(p.cat, p.id === state.selectedPlaceId) });
+    marker.bindTooltip(p.name, { direction:'top', offset:[0,-24], opacity:0.95 });
+    marker.bindPopup(`<div class="popup-cat">${c.label}</div><div class="popup-name">${p.name}</div>`);
+    marker.on('click', ()=>{
+      state.selectedPlaceId = p.id;
+      state.activeTab = 'place';
+      renderAll();
+    });
+    marker.addTo(markerLayer);
+  });
+
+  routeLayer.clearLayers();
+  if(state.showRoute && state.routeStatus === 'ready' && state.routeGeojson){
+    L.polyline(state.routeGeojson, { color:'#FBF8F0', weight:7, opacity:0.9 }).addTo(routeLayer);
+    L.polyline(state.routeGeojson, { color:'#B2502B', weight:4, opacity:0.95 }).addTo(routeLayer);
+    leafletMap.fitBounds(L.latLngBounds(state.routeGeojson), { padding:[30,30] });
+  }
+}
+
+/* ---------------- Right panel ---------------- */
+function renderPanelTabs(){
+  document.getElementById('tabPlace').className = state.activeTab==='place' ? 'active' : '';
+  document.getElementById('tabPlan').className = state.activeTab==='plan' ? 'active' : '';
+  const count = currentPlan().length;
+  document.getElementById('planBadge').textContent = count ? `(${count})` : '';
+}
+function renderPlaceTab(){
+  const el = document.getElementById('panelBody');
+  const place = state.selectedPlaceId ? findPlace(state.selectedPlaceId) : null;
+  if(!place){
+    el.innerHTML = `<div class="empty-state"><span class="glyph">⌖</span>Click a pin on the map to see what's there.</div>`;
+    return;
+  }
+  const c = CATS[place.cat];
+  const inPlan = currentPlan().includes(place.id);
+  el.innerHTML = `
+    <div style="--cat-color:${c.color}">
+      <div class="pc-cat">${c.label}</div>
+      <h3>${place.name}</h3>
+      <div class="pc-meta">
+        <span>${place.price}</span>
+        <span>★ ${place.rating}</span>
+        <span>~${place.duration}</span>
+      </div>
+      <p class="pc-desc">${place.desc}</p>
+      <button class="btn ${inPlan?'added':''}" id="addBtn">${inPlan ? '✓ Added — remove' : '+ Add to your plan'}</button>
+    </div>
+  `;
+  document.getElementById('addBtn').addEventListener('click', ()=> togglePlan(place.id));
+}
+function renderPlanTab(){
+  const el = document.getElementById('panelBody');
+  const plan = currentPlan();
+  if(plan.length === 0){
+    el.innerHTML = `<div class="empty-state"><span class="glyph">✎</span>No stops yet. Add places from the map to start your plan.</div>`;
+    return;
+  }
+  const places = plan.map(id => findPlace(id));
+  let totalMiles = 0;
+  for(let i=0;i<places.length-1;i++) totalMiles += haversineMiles(places[i], places[i+1]);
+  let html = `<div style="font-family:'IBM Plex Mono',monospace;font-size:11.5px;color:var(--ink-soft);margin-bottom:14px;">${plan.length} stop${plan.length>1?'s':''} · ${totalMiles.toFixed(1)} mi between them</div>`;
+  html += `<div class="stop-list">`;
+  places.forEach((p, i)=>{
+    const c = CATS[p.cat];
+    html += `
+      <div class="stop">
+        <div class="stop-index" style="background:${c.color}">${i+1}</div>
+        <div class="stop-body">
+          <div class="s-name">${p.name}</div>
+          <div class="s-cat">${c.label}</div>
+        </div>
+        <div class="stop-actions">
+          <button data-id="${p.id}">✕</button>
+        </div>
+      </div>
+    `;
+  });
+  html += `</div>`;
+  const btnLabel = state.showRoute
+    ? (state.routeStatus === 'loading' ? 'Calculating…' : 'Hide route')
+    : 'Show route & estimated time';
+  html += `<button class="btn route-btn" id="routeBtn" ${plan.length<2 || state.routeStatus==='loading' ? 'disabled':''}>${btnLabel}</button>`;
+
+  if(state.showRoute){
+    if(state.routeStatus === 'loading'){
+      html += `<div class="route-note">Calculating road route…</div>`;
+    } else if(state.routeStatus === 'ready'){
+      html += `
+        <div class="route-stats">
+          <div><span class="val">${state.routeDistanceMiles.toFixed(1)} mi</span><span class="lbl">road distance</span></div>
+          <div><span class="val">~${Math.round(state.routeDurationMin)} min</span><span class="lbl">estimated drive time</span></div>
+        </div>
+        <div class="route-note">Route calculated over the real UK road network via OpenStreetMap / OSRM, in the stop order shown above.</div>
+      `;
+    } else if(state.routeStatus === 'error'){
+      const AVG_MPH = 25;
+      const mins = Math.round((totalMiles / AVG_MPH) * 60);
+      html += `
+        <div class="route-stats">
+          <div><span class="val">${totalMiles.toFixed(1)} mi</span><span class="lbl">straight-line distance</span></div>
+          <div><span class="val">~${mins} min</span><span class="lbl">rough estimate</span></div>
+        </div>
+        <div class="route-note">Couldn't reach the road-routing service just now, so this is a straight-line fallback estimate instead.</div>
+      `;
+    }
+  }
+
+  el.innerHTML = html;
+  const routeBtn = document.getElementById('routeBtn');
+  if(routeBtn){
+    routeBtn.addEventListener('click', async ()=>{
+      if(state.showRoute){
+        state.showRoute = false;
+        state.routeStatus = 'idle';
+        renderAll();
+        return;
+      }
+      state.showRoute = true;
+      state.routeStatus = 'loading';
+      renderAll();
+      try{
+        const result = await fetchRoadRoute(places);
+        state.routeStatus = 'ready';
+        state.routeGeojson = result.coords;
+        state.routeDistanceMiles = result.distanceMiles;
+        state.routeDurationMin = result.durationMin;
+      }catch(err){
+        state.routeStatus = 'error';
+      }
+      renderAll();
+    });
+  }
+  el.querySelectorAll('.stop-actions button').forEach(btn=>{
+    btn.addEventListener('click', ()=>{
+      togglePlan(btn.dataset.id);
+    });
+  });
+}
+function togglePlan(id){
+  const arr = currentPlan();
+  const i = arr.indexOf(id);
+  if(i===-1) arr.push(id); else arr.splice(i,1);
+  state.showRoute = false;
+  state.routeStatus = 'idle';
+  renderAll();
+}
+function renderPanelBody(){
+  if(state.activeTab === 'place') renderPlaceTab();
+  else renderPlanTab();
+}
+
+/* ---------------- Wiring ---------------- */
+document.getElementById('tabPlace').addEventListener('click', ()=>{ state.activeTab='place'; renderAll(); });
+document.getElementById('tabPlan').addEventListener('click', ()=>{ state.activeTab='plan'; renderAll(); });
+document.getElementById('searchInput').addEventListener('input', (e)=>{
+  state.searchTerm = e.target.value;
+  renderMap();
+});
+
+/* ---------------- Master render ---------------- */
+function renderAll(){
+  renderRegionSelect();
+  renderFilters();
+  renderLegend();
+  renderMap();
+  renderPanelTabs();
+  renderPanelBody();
+}
+initMap();
+renderAll();
+window.addEventListener('resize', ()=> leafletMap.invalidateSize());
+
+/* Auto-draw the road route for the pre-loaded Lake District trip plan */
+(async function loadInitialRoute(){
+  const plan = currentPlan();
+  if(plan.length < 2) return;
+  const places = plan.map(id => findPlace(id));
+  state.showRoute = true;
+  state.routeStatus = 'loading';
+  renderAll();
+  try{
+    const result = await fetchRoadRoute(places);
+    state.routeStatus = 'ready';
+    state.routeGeojson = result.coords;
+    state.routeDistanceMiles = result.distanceMiles;
+    state.routeDurationMin = result.durationMin;
+  }catch(err){
+    state.routeStatus = 'error';
+  }
+  renderAll();
+})();
+</script>
+</body>
+</html>
